@@ -1,0 +1,8 @@
+python-telegram-bot[ext]
+openai
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
+python-dotenv
+requests
+aiohttp # For OAuth callback web server

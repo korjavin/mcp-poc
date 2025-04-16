@@ -1,0 +1,38 @@
+# Environment variables
+.env
+*.env
+
+# Google OAuth Credentials
+credentials.json
+client_secrets.json
+
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# IDE / Editor specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Token storage (adjust if using a different path/method)
+token_storage/
+*.token
+*.pickle
+
+# Docker / OS files
+.DS_Store
+docker-compose.override.yml

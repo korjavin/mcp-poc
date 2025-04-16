@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  bot:
+    build: ./bot
+    container_name: telegram_cal_bot
+    env_file:
+      - .env # Load environment variables from .env file
+    volumes:
+      # Code is copied via Dockerfile, no need for runtime code mount
+      # - ./bot:/app
+      # Persistent storage for bot tokens/state (e.g., Google credentials)
+      # Ensure the path inside the container (/app/token_storage) is used by the bot code
+      - bot_token_storage:/app/token_storage
+      # Credentials file will be copied into the image via Dockerfile, no mount needed here
+    ports:
+      # Expose port for the OAuth callback handler within the bot
+      # Ensure this matches the port used by the bot's web server and GOOGLE_REDIRECT_URI
+      - "8080:8080"
+    # No depends_on needed anymore
+    # No specific network needed unless interacting with other custom services
+    restart: unless-stopped
+
+# No external MCP service defined anymore
+
+# No specific network needed unless interacting with other custom services
+
+volumes:
+  bot_token_storage: # Volume for storing user credentials persistently
+# mcp_token_storage is no longer needed
