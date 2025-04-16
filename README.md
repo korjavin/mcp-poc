@@ -1,18 +1,43 @@
-# Telegram Bot with OpenAI and Google Calendar Integration (via MCP)
+# Telegram Bot with OpenAI and Google Calendar Integration
 
-This project implements a Telegram bot that allows users to interact with their Google Calendar using natural language commands. It leverages OpenAI for understanding requests and Google Calendar access is primarily handled via the `google-calendar-mcp` server, with a fallback to direct Google API integration. The application is designed to be deployed using Docker Compose (or Podman Compose).
+This project implements a Telegram bot that allows users to interact with their Google Calendar using natural language commands. It leverages OpenAI for understanding requests and integrates directly with the Google Calendar API using Google's Python client libraries for authentication and interaction. The application is designed to be deployed using Docker Compose (or Podman Compose).
 
 ## Features
 
 *   Natural language interaction with Google Calendar via Telegram.
 *   Uses OpenAI (GPT models) for intent recognition and parameter extraction.
-*   Connects to Google Calendar using the `google-calendar-mcp` server (primary) or Google's Python client library (fallback).
-*   User-specific Google OAuth2 authentication.
+*   Connects directly to the Google Calendar API using official Google client libraries.
+*   Handles user-specific Google OAuth2 authentication flow within the bot.
 *   Containerized deployment using Docker Compose.
 
 ## Architecture
 
-*(Insert Mermaid diagram from PLAN.md here later)*
+The bot service handles all logic: Telegram communication, OpenAI calls, Google OAuth flow (including a callback endpoint), credential storage, and direct Google Calendar API interaction.
+
+```mermaid
+graph TD
+    subgraph User Interaction
+        User([User]) -- Telegram Message --> TelegramBot[Telegram Bot (Python Service)]
+        TelegramBot -- Formatted Response --> User
+    end
+
+    subgraph Bot Logic
+        TelegramBot -- User Message + Tool Schema --> OpenAI{OpenAI API}
+        OpenAI -- Tool Call Instruction --> TelegramBot
+        TelegramBot -- Executes Instruction --> CalendarAccess{Direct Google API Call}
+        CalendarAccess -- Result --> TelegramBot
+        TelegramBot -- Stores/Retrieves Token --> UserDB[(User Auth Tokens - Pickle Files)]
+        User -- OAuth2 Flow --> AuthHandler{Bot's OAuth Handler}
+        AuthHandler -- Handles Callback & Token Exchange --> GoogleOAuth[Google OAuth Endpoints]
+        CalendarAccess -- Google API Call (with User Token) --> GoogleAPI[Google Calendar API]
+    end
+
+    subgraph Deployment
+        Compose[docker-compose.yml] --> TelegramBot
+        HostEnv[.env File] -- Reads Variables --> TelegramBot
+        TokensVolume[Volume: bot_token_storage] -- Persists Tokens --> UserDB
+    end
+```
 
 ## Prerequisites
 
@@ -43,10 +68,10 @@ This project implements a Telegram bot that allows users to interact with their 
         *   *(If using fallback)* For the Bot: `http://localhost:8080/callback` (Adjust port if changed)
         *   *Important:* Ensure these match the `GOOGLE_REDIRECT_URI` in your `.env` file.
     *   Click "Create".
-    *   You will see the Client ID and Client Secret. You will also need other details from the downloaded JSON file (like Project ID, Auth URI, Token URI) for the `.env` file. **Do not commit the downloaded JSON file or the `.env` file.**
+    *   You will need the Client ID, Client Secret, Project ID, Auth URI, and Token URI from the downloaded `credentials.json` file to populate the `.env` file in the next step. **Do not commit the downloaded JSON file or the `.env` file.**
 
 3.  **Configure Environment Variables:**
-    *   Create a `.env` file by copying the example:
+    *   Create a `.env` file in the project root by copying the example:
         ```bash
         cp .env.example .env
         ```
@@ -59,7 +84,7 @@ This project implements a Telegram bot that allows users to interact with their 
         *   `GOOGLE_AUTH_PROVIDER_X509_CERT_URL` (usually `https://www.googleapis.com/oauth2/v1/certs`)
         *   `GOOGLE_CLIENT_ID` (from the downloaded `credentials.json` or Cloud Console)
         *   `GOOGLE_CLIENT_SECRET` (from the downloaded `credentials.json` or Cloud Console)
-        *   `GOOGLE_REDIRECT_URI` (ensure this matches *exactly* one of the URIs registered in step 2 and the port exposed by the bot, e.g., `http://localhost:8080/callback`)
+        *   `GOOGLE_REDIRECT_URI` (ensure this matches *exactly* one of the URIs registered in step 2 and the port exposed by the bot in `docker-compose.yml`, e.g., `http://localhost:8080/callback`)
 
 4.  **Build and Run with Docker Compose:**
     ```bash
@@ -80,7 +105,7 @@ This project implements a Telegram bot that allows users to interact with their 
 ## Usage
 
 1.  **Start a Chat:** Find your bot on Telegram and send the `/start` command.
-2.  **Authorize Google Calendar:** Use the `/auth` command (or similar, depending on implementation). The bot will provide a link. Open the link in your browser, log in to your Google account, and grant the requested permissions. You should be redirected back (to the MCP server or the bot's callback handler).
+2.  **Authorize Google Calendar:** Use the `/auth` command. The bot will provide a link. Open the link in your browser, log in to your Google account, and grant the requested permissions. You should be redirected back to a page confirming success, and the bot should send you a confirmation message in Telegram.
 3.  **Interact:** Once authorized, you can send natural language commands like:
     *   "What's on my calendar tomorrow?"
     *   "Schedule a meeting with Roo on Friday at 2 PM for 1 hour called 'MCP Project Sync'"
@@ -92,8 +117,10 @@ This project implements a Telegram bot that allows users to interact with their 
 
 ## Troubleshooting
 
-*(Add common issues and solutions later)*
+*   **ERR_CONNECTION_REFUSED / ERR_EMPTY_RESPONSE on callback:** Ensure the `GOOGLE_REDIRECT_URI` in your `.env` file uses the correct port (default `8080`) and matches the `ports` section in `docker-compose.yml`. Also ensure the URI is registered in your Google Cloud Console project.
+*   **Authentication errors after successful auth:** Check bot logs (`podman-compose logs bot`). Ensure the `bot_token_storage` volume is working correctly and token files (`*.pickle`) are being created/updated in the volume on your host machine. You might need to re-authenticate using `/auth`.
+*   **"Is a directory" error on startup:** This was related to volume mounting conflicts. The current setup (copying code via Dockerfile, no code volume mount) should prevent this. Ensure `docker-compose.yml` does *not* mount `./bot:/app`.
 
 ---
 
-*This README is based on the initial plan. Details will be refined as development progresses.*
+*This README reflects the implementation using direct Google API integration within the bot.*
