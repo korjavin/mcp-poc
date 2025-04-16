@@ -41,7 +41,7 @@ if not TELEGRAM_BOT_TOKEN:
     exit(1)
 
 # --- Constants ---
-GOOGLE_CLIENT_SECRETS_FILE = '/app/credentials.json' # Path where Dockerfile copies the file
+# GOOGLE_CLIENT_SECRETS_FILE = '/app/credentials.json' # No longer needed
 # Scopes required for calendar access (read/write)
 SCOPES = ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/calendar.events']
 # Redirect URI for OAuth flow - must match Google Cloud Console and docker-compose port mapping
@@ -166,9 +166,35 @@ async def auth_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     context.user_data['auth_chat_id'] = chat_id
 
     try:
-        # Create flow instance using client secrets file
-        flow = Flow.from_client_secrets_file(
-            GOOGLE_CLIENT_SECRETS_FILE,
+        # Construct client_config dictionary from environment variables
+        client_id = os.getenv("GOOGLE_CLIENT_ID")
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+        project_id = os.getenv("GOOGLE_PROJECT_ID")
+        auth_uri = os.getenv("GOOGLE_AUTH_URI", "https://accounts.google.com/o/oauth2/auth")
+        token_uri = os.getenv("GOOGLE_TOKEN_URI", "https://oauth2.googleapis.com/token")
+        auth_provider_x509_cert_url = os.getenv("GOOGLE_AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs")
+        # Redirect URIs are handled by the REDIRECT_URI constant directly in the flow
+
+        if not all([client_id, client_secret, project_id]):
+            logger.error("Missing required Google OAuth environment variables (CLIENT_ID, CLIENT_SECRET, PROJECT_ID).")
+            await update.message.reply_text("Error: Authentication configuration is incomplete in environment variables.")
+            return
+
+        client_config = {
+            "web": {
+                "client_id": client_id,
+                "project_id": project_id,
+                "auth_uri": auth_uri,
+                "token_uri": token_uri,
+                "auth_provider_x509_cert_url": auth_provider_x509_cert_url,
+                "client_secret": client_secret,
+                "redirect_uris": [REDIRECT_URI] # Use the single configured redirect URI
+            }
+        }
+
+        # Create flow instance using the constructed config dictionary
+        flow = Flow.from_client_config(
+            client_config=client_config, # Use loaded dictionary
             scopes=SCOPES,
             redirect_uri=REDIRECT_URI
         )
@@ -199,7 +225,6 @@ async def auth_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     except Exception as e:
         logger.error(f"Error creating OAuth flow for user {user_id}: {e}")
         await update.message.reply_text("An error occurred while starting the authentication process.")
-
 
 # --- Credential Storage ---
 
@@ -460,13 +485,39 @@ async def oauth_callback(request: web.Request) -> web.Response:
         logger.info(f"OAuth state verified for user {user_id}.")
 
         # Exchange code for credentials
-        flow = Flow.from_client_secrets_file(
-            GOOGLE_CLIENT_SECRETS_FILE,
+        # Construct client_config again for the callback
+        client_id = os.getenv("GOOGLE_CLIENT_ID")
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+        project_id = os.getenv("GOOGLE_PROJECT_ID")
+        auth_uri = os.getenv("GOOGLE_AUTH_URI", "https://accounts.google.com/o/oauth2/auth")
+        token_uri = os.getenv("GOOGLE_TOKEN_URI", "https://oauth2.googleapis.com/token")
+        auth_provider_x509_cert_url = os.getenv("GOOGLE_AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs")
+
+        if not all([client_id, client_secret, project_id]):
+             logger.error("Missing required Google OAuth environment variables during callback.")
+             if chat_id:
+                 await bot_app.bot.send_message(chat_id, "Error processing authentication callback (missing config).")
+             return web.Response(text="Error: Missing authentication configuration during callback.", status=500)
+
+        client_config = {
+            "web": {
+                "client_id": client_id,
+                "project_id": project_id,
+                "auth_uri": auth_uri,
+                "token_uri": token_uri,
+                "auth_provider_x509_cert_url": auth_provider_x509_cert_url,
+                "client_secret": client_secret,
+                "redirect_uris": [REDIRECT_URI]
+            }
+        }
+
+        flow = Flow.from_client_config(
+            client_config=client_config, # Use constructed dictionary
             scopes=SCOPES,
             redirect_uri=REDIRECT_URI,
             state=state # Pass state back to flow
         )
-        # Use the full URL from the request to fetch the token (handles http vs https if needed)
+        # Use the full URL from the request to fetch the token
         authorization_response = request.url.human_repr()
         flow.fetch_token(authorization_response=authorization_response)
         credentials = flow.credentials
@@ -518,19 +569,18 @@ async def start_web_server(bot_app: Application):
 
     runner = web.AppRunner(app)
     await runner.setup()
-    # Extract host/port from REDIRECT_URI for binding
+    # Determine port from REDIRECT_URI, but always bind to 0.0.0.0 for external accessibility
+    host = '0.0.0.0'
     try:
         from urllib.parse import urlparse
         parsed_uri = urlparse(REDIRECT_URI)
-        host = parsed_uri.hostname or '0.0.0.0'
         port = parsed_uri.port or 8080
     except Exception:
-        host = '0.0.0.0'
         port = 8080
-        logger.warning(f"Could not parse REDIRECT_URI ('{REDIRECT_URI}'), defaulting web server to {host}:{port}")
+        logger.warning(f"Could not parse port from REDIRECT_URI ('{REDIRECT_URI}'), defaulting web server port to {port}")
 
     site = web.TCPSite(runner, host, port)
-    logger.info(f"Starting web server on {host}:{port} for OAuth callback...")
+    logger.info(f"Starting web server on {host}:{port} (accessible externally) for OAuth callback...")
     await site.start()
     logger.info("Web server started.")
     # Keep it running until cancelled

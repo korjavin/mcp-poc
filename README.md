@@ -43,17 +43,9 @@ This project implements a Telegram bot that allows users to interact with their 
         *   *(If using fallback)* For the Bot: `http://localhost:8080/callback` (Adjust port if changed)
         *   *Important:* Ensure these match the `GOOGLE_REDIRECT_URI` in your `.env` file.
     *   Click "Create".
-    *   Download the credentials JSON file. Rename it to `credentials.json` and place it in the root directory of this project. **Do not commit this file.**
+    *   You will see the Client ID and Client Secret. You will also need other details from the downloaded JSON file (like Project ID, Auth URI, Token URI) for the `.env` file. **Do not commit the downloaded JSON file or the `.env` file.**
 
-3.  **Clone the MCP Server (if not using a pre-built image):**
-    *   The current `docker-compose.yml` assumes you will build the MCP server from source.
-    *   Clone the repository into the `mcp/` directory:
-        ```bash
-        git clone https://github.com/Jackson88/google-calendar-mcp.git mcp
-        ```
-    *   *(If a reliable Docker image becomes available, update `docker-compose.yml` and remove this step)*
-
-4.  **Configure Environment Variables:**
+3.  **Configure Environment Variables:**
     *   Create a `.env` file by copying the example:
         ```bash
         cp .env.example .env
@@ -61,12 +53,22 @@ This project implements a Telegram bot that allows users to interact with their 
     *   Edit the `.env` file and fill in your actual values for:
         *   `TELEGRAM_BOT_TOKEN`
         *   `OPENAI_API_KEY`
-        *   `GOOGLE_CLIENT_ID` (from `credentials.json`)
-        *   `GOOGLE_CLIENT_SECRET` (from `credentials.json`)
-        *   `GOOGLE_REDIRECT_URI` (ensure it matches step 2 and your setup)
-        *   Verify `MCP_SERVER_URL` if needed.
+        *   `GOOGLE_PROJECT_ID` (from the downloaded `credentials.json`)
+        *   `GOOGLE_AUTH_URI` (usually `https://accounts.google.com/o/oauth2/auth`)
+        *   `GOOGLE_TOKEN_URI` (usually `https://oauth2.googleapis.com/token`)
+        *   `GOOGLE_AUTH_PROVIDER_X509_CERT_URL` (usually `https://www.googleapis.com/oauth2/v1/certs`)
+        *   `GOOGLE_CLIENT_ID` (from the downloaded `credentials.json` or Cloud Console)
+        *   `GOOGLE_CLIENT_SECRET` (from the downloaded `credentials.json` or Cloud Console)
+        *   `GOOGLE_REDIRECT_URI` (ensure this matches *exactly* one of the URIs registered in step 2 and the port exposed by the bot, e.g., `http://localhost:8080/callback`)
 
-5.  **Build and Run with Docker Compose:**
+4.  **Build and Run with Docker Compose:**
+    ```bash
+    # Using Docker Compose
+    *   Clone the repository into the `mcp/` directory:
+        ```bash
+        git clone https://github.com/Jackson88/google-calendar-mcp.git mcp
+        ```
+    # Using Podman Compose
     ```bash
     # Using Docker Compose
     docker-compose up --build -d

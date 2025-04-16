@@ -11,10 +11,7 @@ COPY requirements.txt .
 # Use --no-cache-dir to reduce image size
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the credentials file from the build context (project root) into the container
-# Ensure credentials.json exists in the project root when building
-#COPY ../credentials.json /app/credentials.json
-RUN echo '{}' >  /app/credentials.json 
+# Credentials will be loaded from environment variables, no file copy needed.
 
 # Copy the rest of the application code into the container at /app
 COPY . .

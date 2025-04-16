@@ -6,6 +6,9 @@ services:
     container_name: telegram_cal_bot
     env_file:
       - .env # Load environment variables from .env file
+    environment:
+      # Allow OAuthlib to work with HTTP callback for local development
+      - OAUTHLIB_INSECURE_TRANSPORT=1
     volumes:
       # Code is copied via Dockerfile, no need for runtime code mount
       # - ./bot:/app
